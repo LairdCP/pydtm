@@ -1,0 +1,63 @@
+name: Build documentation
+on:
+  pull_request:
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the
+# run in-progress and latest queued.  However, do NOT cancel in-progress
+# runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+env:
+  REPO_DIR: repo
+  BUILD_DIR: build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build Python documentation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ${{env.REPO_DIR}}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r $REPO_DIR/requirements.txt
+
+      - name: Build documentation
+        run: sphinx-build -b html -a -v -n $REPO_DIR $BUILD_DIR
+
+      - name: Upload source
+        uses: actions/upload-artifact@v3
+        with:
+          name: source
+          path: ${{env.REPO_DIR}}
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: ${{env.BUILD_DIR}}
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+
