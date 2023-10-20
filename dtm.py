@@ -6,6 +6,7 @@
 import ctypes
 from enum import Enum
 import logging
+from power_table import POWER_TABLE
 import math
 import serial
 import time
@@ -73,6 +74,18 @@ class Phy(Enum):
     CODED_PHY_S2 = 19
 
 
+class Antenna(Enum):
+    INTERNAL = (0,)
+    EXTERNAL = 1
+
+
+class Region(Enum):
+    UNSET = 0
+    CE = 1
+    FCC_IC = 2
+    RCM = 3
+
+
 class ResponseType(Enum):
     """
     There are two main response types from the DUT (device under test).
@@ -107,6 +120,7 @@ class VendorSpecific(Enum):
     FEM_GAIN_SET = 4
     FEM_ACTIVE_DELAY_SET = 5
     FEM_DEFAULT_PARAMS_SET = 6
+
 
 # Packet type is used to indicate a Vendor Specific [sub]command
 class PacketType(Enum):
@@ -239,6 +253,8 @@ class DTM:
         self.packet_count = 0
         self.packet_length = PACKET_LENGTH_MAX
         self.phy = Phy.PHY_1M
+        self.antenna = Antenna.EXTERNAL
+        self.region = Region.UNSET
         try:
             self.transport = serial.Serial(
                 com_port, BAUD_RATE, timeout=SERIAL_TIMEOUT_SECONDS
@@ -278,7 +294,8 @@ class DTM:
         elif rsp.bits.ev == ResponseType.PACKET_REPORT.value:
             # Value isn't valid for transmit test (always 0)
             if self.test.cmd == CommandType.RX.value:
-                logging.info(f"End Test packet count {rsp.report.packet_count}")
+                logging.info(
+                    f"End Test packet count {rsp.report.packet_count}")
                 self.packet_count = rsp.report.packet_count
             else:
                 logging.debug("End Test OK")
@@ -339,6 +356,7 @@ class DTM:
         self.test.cmd = CommandType.TX.value
         if freq is not None:
             self.set_frequency(freq)
+        self._adjust_power_for_region_and_antenna()
         self._send_cmd(self.test)
         if duration > 0:
             time.sleep(duration)
@@ -346,7 +364,8 @@ class DTM:
             # Estimate number of packets sent
             # This doesn't take into account the time to send serial messages or
             # execution time.
-            self.packet_count = int((duration * 1e6) / self._packet_interval_us())
+            self.packet_count = int(
+                (duration * 1e6) / self._packet_interval_us())
             logging.info(
                 f"Approximately {self.packet_count} packets of {self.packet_length}"
                 f"bytes were sent using {self.phy.name}"
@@ -362,7 +381,9 @@ class DTM:
         logger.debug("Starting TX Sweep")
         self.test.cmd = CommandType.TX.value
         for _ in range(-1, repeat_count):
-            for self.test.freq in range(0, CHANNEL_MAX):
+            for channel in range(CHANNEL_MIN, CHANNEL_MAX):
+                self.test.freq = channel
+                self._adjust_power_for_region_and_antenna()
                 self._send_cmd(self.test)
                 time.sleep(duration)
                 self.end_test()
@@ -432,6 +453,29 @@ class DTM:
             c = channel + 2
         self.set_channel_physical(c)
 
+    def get_channel_logical(self):
+        """
+        Get logical channel from physical channel.\n
+        2402 = 37\n
+        2404 = 0\n
+        ...\n
+        2424 = 10\n
+        2426 = 38\n
+        2428 = 11\n
+        ...\n
+        2480 = 39\n
+        """
+        if self.test.freq == 0:
+            return 37
+        elif self.test.freq == 12:
+            return 38
+        elif self.test.freq == 39:
+            return 39
+        elif self.test.freq <= 11:
+            return self.test.freq - 1
+        else:
+            return self.test.freq - 2
+
     def _send_vs_cmd(self, sub_cmd: VendorSpecific, param: int):
         """
         Utility for sending a vendor specific command
@@ -470,6 +514,12 @@ class DTM:
         :param int power: Only set powers supported by the nRF5340
             (:py:data:`NRF5340_SOC_PWR_TABLE`) can be set by the vendor specific command
         """
+        if self.region == Region.UNSET:
+            self._set_tx_power(power)
+        else:
+            logging.error("Power cannot be set manually when a region is set")
+
+    def _set_tx_power(self, power: int):
         if power in NRF5340_SOC_PWR_TABLE:
             self._send_vs_cmd(VendorSpecific.SET_TX_POWER, power)
         else:
@@ -502,14 +552,66 @@ class DTM:
         else:
             logger.error("Invalid FEM gain")
 
+    def region_unset(self):
+        """
+        FEM gain is not kept track of by this module.
+        Therefore, it is not possible to change the region without resetting board
+        and creating a new object.
+        """
+        if self.region != Region.UNSET:
+            logging.error("Region already set - reset board to set new region")
+            return False
+        else:
+            return True
+
     def configure_for_ce(self):
         """
         Configure the BL5340PA (nRF5340 output power and FEM gain)
         for operation in Europe (CE).
         """
-        self.set_tx_power(-16)
-        # Gain of ~18 dB
-        self.set_fem_gain(23)
+        if self.region_unset():
+            self.region = Region.CE
+            self._set_tx_power(-16)
+            # Gain of ~18 dB
+            self.set_fem_gain(23)
+
+    def configure_for_north_america(self, internal_antenna: bool = False):
+        """
+        Use FCC/IC power tables.
+
+        Antenna input of FEM cannot be changed during runtime, but its value
+        must be known to select the correct power table.
+        """
+        if self.region_unset():
+            self.region = Region.FCC_IC
+            if internal_antenna:
+                self.antenna = Antenna.INTERNAL
+
+    def configure_for_australia_nz(self, internal_antenna: bool = False):
+        """
+        Use RCM power tables.
+
+        Antenna input of FEM cannot be changed during runtime, but its value
+        must be known to select the correct power table.
+        """
+        if self.region_unset():
+            self.region = Region.RCM
+            if internal_antenna:
+                self.antenna = Antenna.INTERNAL
+
+    def _adjust_power_for_region_and_antenna(self):
+        """
+        If required, adjust the transmit power for the region and antenna type.
+
+        The current tables don't require floor/ceiling adjustments to map to
+        valid nRF5340 output power levels.
+        """
+        if self.region == Region.FCC_IC or self.region == Region.RCM:
+            self._set_tx_power(
+                POWER_TABLE[self.region.name][self.antenna.name][self.phy.name][
+                    self.get_channel_logical()
+                ]
+            )
 
     def _send_test_setup_cmd(self, sub_cmd: TestSetup, param: int):
         """
@@ -675,7 +777,8 @@ class DTM:
         Set packet type to 10101010.
         """
         self._set_packet_type(PacketType.B_10101010)
-    
+
+
 # To increase verbosity, the level can be set to DEBUG.
 if __name__ == "__main__":
     script_name = __file__
