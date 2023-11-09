@@ -497,7 +497,7 @@ class DTM:
 
         :param int gain: Value of gain register in nRF21540 (0-31)
         """
-        if gain < 31 and gain > 0:
+        if gain < 32 and gain > 0:
             self._send_vs_cmd(VendorSpecific.FEM_GAIN_SET, gain)
         else:
             logger.error("Invalid FEM gain")
