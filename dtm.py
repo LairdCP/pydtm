@@ -367,8 +367,8 @@ class DTM:
             self.packet_count = int(
                 (duration * 1e6) / self._packet_interval_us())
             logging.info(
-                f"Approximately {self.packet_count} packets of {self.packet_length}"
-                f"bytes were sent using {self.phy.name}"
+                f"Approximately {self.packet_count} packets of "
+                f"{self.packet_length} bytes were sent using {self.phy.name}"
             )
 
     def start_tx_sweep(self, duration=1.0, repeat_count: int = 0):
