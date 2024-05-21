@@ -1,6 +1,6 @@
 # Python Direct Test Mode for Bluetooth
 
-The [pydtm](https://lairdcp.github.io/pydtm/) software module uses the serial port to communicate with an nRF5340 + nRF21540 (BL5340PA) using Direct Test Mode commands as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/2.4.1/nrf/samples/bluetooth/direct_test_mode/README.html). A visually concise summary for a similar part is [here](https://www.engeniustech.com/technical-papers/BLE-direct-test.pdf).
+The [pydtm](https://lairdcp.github.io/pydtm/) software module uses the serial port to communicate with an nRF5340 + nRF21540 (BL5340PA) using Direct Test Mode commands as described [here](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/2.6.1/nrf/samples/bluetooth/direct_test_mode/README.html). A visually concise summary for a similar part is [here](https://www.engeniustech.com/technical-papers/BLE-direct-test.pdf).
 
 Unlike the nRF PC DTM application, this doesn't send the test reset command and configuration each time a test is started.
 
