@@ -3,8 +3,8 @@
 # This [ab]uses the fact that there is an execution/comm delay when running the
 # script that results in more packets being sent than the amount computed.
 #
-dut1 = DTM("COM12")
-dut2 = DTM("COM13")
+dut1 = DTM("COM21")
+dut2 = DTM("COM28")
 
 for length in [32, 73, 255]:
     dut1.set_packet_length(length)

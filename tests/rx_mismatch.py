@@ -1,8 +1,8 @@
 #
 # Ensure 0 packets are received when settings don't match
 #
-dut1 = DTM("COM12")
-dut2 = DTM("COM13")
+dut1 = DTM("COM21")
+dut2 = DTM("COM28")
 
 # 384 packets
 dut1.start_rx_test()

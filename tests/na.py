@@ -1,5 +1,5 @@
 try:
-    dut = DTM("COM9")
+    dut = DTM("COM21")
     dut.configure_for_north_america()
     dut.start_tx_sweep()
     dut.start_tx_test(2440)

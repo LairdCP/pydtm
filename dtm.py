@@ -784,7 +784,7 @@ if __name__ == "__main__":
     script_name = __file__
     log_file_name = script_name.replace(".py", ".log")
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.FileHandler(log_file_name), logging.StreamHandler()],

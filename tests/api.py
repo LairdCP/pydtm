@@ -1,5 +1,5 @@
 try:
-    dut = DTM("COM13")
+    dut = DTM("COM21")
     dut.reset_cmd()
     # no params
     dut.start_tx_test()
